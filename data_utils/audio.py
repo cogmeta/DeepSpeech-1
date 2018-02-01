@@ -187,9 +187,18 @@ class AudioSegment(object):
         :rtype: AudioSegment
         """
         samples, sample_rate = soundfile.read(
-            io.BytesIO(bytes), dtype='float32')
+            io.BytesIO(bytes), #dtype='float32')
+            channels=1,
+            samplerate=16000,
+            dtype="int16",
+            format="RAW",
+            subtype="PCM_32")
+        
+        # samples, sample_rate = soundfile.read(
+        #     io.BytesIO(bytes), dtype='float32')
+        print(samples)
         return cls(samples, sample_rate)
-
+        
     @classmethod
     def concatenate(cls, *segments):
         """Concatenate an arbitrary number of audio segments together.

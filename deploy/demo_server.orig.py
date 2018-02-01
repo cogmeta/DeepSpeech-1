@@ -19,40 +19,39 @@ parser = argparse.ArgumentParser(description=__doc__)
 add_arg = functools.partial(add_arguments, argparser=parser)
 # yapf: disable
 add_arg('host_port',        int,    8086,    "Server's IP port.")
-add_arg('beam_size',        int,    1024,    "Beam search width.")
+add_arg('beam_size',        int,    500,    "Beam search width.")
 add_arg('num_conv_layers',  int,    2,      "# of convolution layers.")
 add_arg('num_rnn_layers',   int,    3,      "# of recurrent layers.")
-add_arg('rnn_layer_size',   int,    1024,   "# of recurrent cells per layer.")
-add_arg('alpha',            float,  2.15,   "Coef of LM for beam search.")
-add_arg('beta',             float,  0.35,   "Coef of WC for beam search.")
+add_arg('rnn_layer_size',   int,    2048,   "# of recurrent cells per layer.")
+add_arg('alpha',            float,  2.5,   "Coef of LM for beam search.")
+add_arg('beta',             float,  0.3,   "Coef of WC for beam search.")
 add_arg('cutoff_prob',      float,  1.0,    "Cutoff probability for pruning.")
 add_arg('cutoff_top_n',     int,    40,     "Cutoff number for pruning.")
-add_arg('use_gru',          bool,   True,  "Use GRUs instead of simple RNNs.")
-add_arg('use_gpu',          bool,   False,   "Use GPU or not.")
-add_arg('share_rnn_weights',bool,   False,   "Share input-hidden weights across "
+add_arg('use_gru',          bool,   False,  "Use GRUs instead of simple RNNs.")
+add_arg('use_gpu',          bool,   True,   "Use GPU or not.")
+add_arg('share_rnn_weights',bool,   True,   "Share input-hidden weights across "
                                             "bi-directional RNNs. Not for GRU.")
 add_arg('host_ip',          str,
-        '0.0.0.0',
+        'localhost',
         "Server's IP address.")
 add_arg('speech_save_dir',  str,
         'demo_cache',
         "Directory to save demo audios.")
 add_arg('warmup_manifest',  str,
-        '../models/baidu_en8k/manifest.test-clean',
+        'data/librispeech/manifest.test-clean',
         "Filepath of manifest to warm up.")
 add_arg('mean_std_path',    str,
-        '../models/baidu_en8k/mean_std.npz',
+        'data/librispeech/mean_std.npz',
         "Filepath of normalizer's mean & std.")
 add_arg('vocab_path',       str,
-        '../models/baidu_en8k/eng_vocab.txt',
+        'data/librispeech/eng_vocab.txt',
         "Filepath of vocabulary.")
 add_arg('model_path',       str,
-        #'./checkpoints/libri/params.latest.tar.gz',
-        '../models/baidu_en8k/params.tar.gz',
+        './checkpoints/libri/params.latest.tar.gz',
         "If None, the training starts from scratch, "
         "otherwise, it resumes from the pre-trained model.")
 add_arg('lang_model_path',  str,
-        '../models/lm/common_crawl_00.prune01111.trie.klm',
+        'lm/data/common_crawl_00.prune01111.trie.klm',
         "Filepath for language model.")
 add_arg('decoding_method',  str,
         'ctc_beam_search',
@@ -98,7 +97,7 @@ class AsrRequestHandler(SocketServer.BaseRequestHandler):
         print("Received utterance[length=%d] from %s, saved to %s." %
               (len(data), self.client_address[0], filename))
         start_time = time.time()
-        transcript = self.server.audio_process_handler(data) #filename)
+        transcript = self.server.audio_process_handler(filename)
         finish_time = time.time()
         print("Response Time: %f, Transcript: %s" %
               (finish_time - start_time, transcript))
@@ -149,7 +148,6 @@ def start_server():
         specgram_type=args.specgram_type,
         num_threads=1,
         keep_transcription_text=True)
-    #num_conv_layers=args.num_conv_layers)
     # prepare ASR model
     ds2_model = DeepSpeech2Model(
         vocab_size=data_generator.vocab_size,
@@ -162,35 +160,31 @@ def start_server():
 
     vocab_list = [chars.encode("utf-8") for chars in data_generator.vocab_list]
 
+    if args.decoding_method == "ctc_beam_search":
+        ds2_model.init_ext_scorer(args.alpha, args.beta, args.lang_model_path,
+                                  vocab_list)
     # prepare ASR inference handler
     def file_to_transcript(filename):
         feature = data_generator.process_utterance(filename, "")
-        ins = []
-        conv0_h = (feature[0].shape[0] - 1) // 2 + 1
-        conv0_w = (feature[0].shape[1] - 1) // 3 + 1
-        ins += [feature[0], feature[1],
-                [0], [conv0_w],
-                [1, 32, 1, conv0_h, conv0_w + 1, conv0_w]]
-        pre_h = conv0_h
-        for i in xrange(args.num_conv_layers - 1):
-            h = (pre_h - 1) // 2 + 1
-            pre_h = h
-            ins += [[1, 32, 1, h, conv0_w + 1, conv0_w]]
-
-        result_transcript = ds2_model.infer_batch(
-            infer_data=[ins],
-            decoding_method=args.decoding_method,
-            beam_alpha=args.alpha,
-            beam_beta=args.beta,
-            beam_size=args.beam_size,
-            cutoff_prob=args.cutoff_prob,
-            cutoff_top_n=args.cutoff_top_n,
-            vocab_list=vocab_list,
-            language_model_path=args.lang_model_path,
-            num_processes=1,
+        probs_split = ds2_model.infer_batch_probs(
+            infer_data=[feature],
             feeding_dict=data_generator.feeding)
-        return result_transcript[0]
 
+        if args.decoding_method == "ctc_greedy":
+            result_transcript = ds2_model.decode_batch_greedy(
+                probs_split=probs_split,
+                vocab_list=vocab_list)
+        else:
+            result_transcript = ds2_model.decode_batch_beam_search(
+                probs_split=probs_split,
+                beam_alpha=args.alpha,
+                beam_beta=args.beta,
+                beam_size=args.beam_size,
+                cutoff_prob=args.cutoff_prob,
+                cutoff_top_n=args.cutoff_top_n,
+                vocab_list=vocab_list,
+                num_processes=1)
+        return result_transcript[0]
 
 
     # prepare ASR inference handler
@@ -217,13 +211,13 @@ def start_server():
         return result_transcript[0]
 
     
-    # warming up with utterrances sampled from Baidu_En8k
+    # warming up with utterrances sampled from Librispeech
     print('-----------------------------------------------------------')
     print('Warming up ...')
-    #warm_up_test(
-    #audio_process_handler=bytes_to_transcript,
-    #    manifest_path=args.warmup_manifest,
-    #    num_test_cases=3)
+    warm_up_test(
+        audio_process_handler=bytes_to_transcript,
+        manifest_path=args.warmup_manifest,
+        num_test_cases=3)
     print('-----------------------------------------------------------')
 
     # start the server

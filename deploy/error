@@ -1,0 +1,24 @@
+  self.RequestHandlerClass(request, client_address, self)
+  File "/usr/lib/python2.7/SocketServer.py", line 652, in __init__
+    self.handle()
+  File "demo_server.py", line 101, in handle
+    transcript = self.server.audio_process_handler(filename)
+  File "demo_server.py", line 198, in bytes_to_transcript
+    feature = data_generator.process_utterance_bytes(utteranceBytes, "")
+  File "/home/ubuntu/speech/baidu/DeepSpeech-1/deploy/../data_utils/data.py", line 142, in process_utterance_bytes
+    speech_segment, self._keep_transcription_text)
+  File "/home/ubuntu/speech/baidu/DeepSpeech-1/deploy/../data_utils/featurizer/speech_featurizer.py", line 76, in featurize
+    audio_feature = self._audio_featurizer.featurize(speech_segment)
+  File "/home/ubuntu/speech/baidu/DeepSpeech-1/deploy/../data_utils/featurizer/audio_featurizer.py", line 89, in featurize
+    audio_segment.sample_rate)
+  File "/home/ubuntu/speech/baidu/DeepSpeech-1/deploy/../data_utils/featurizer/audio_featurizer.py", line 96, in _compute_specgram
+    self._max_freq)
+  File "/home/ubuntu/speech/baidu/DeepSpeech-1/deploy/../data_utils/featurizer/audio_featurizer.py", line 126, in _compute_linear_specgram
+    sample_rate=sample_rate)
+  File "/home/ubuntu/speech/baidu/DeepSpeech-1/deploy/../data_utils/featurizer/audio_featurizer.py", line 138, in _specgram_real
+    samples, shape=nshape, strides=nstrides)
+  File "/usr/local/lib/python2.7/dist-packages/numpy/lib/stride_tricks.py", line 102, in as_strided
+    array = np.asarray(DummyArray(interface, base=x))
+  File "/usr/local/lib/python2.7/dist-packages/numpy/core/numeric.py", line 531, in asarray
+    return array(a, dtype, copy=False, order=order)
+ValueError: negative dimensions are not allowed
