@@ -119,6 +119,31 @@ class DataGenerator(object):
         specgram = self._normalizer.apply(specgram)
         return specgram, transcript_part
 
+
+    def process_utterance_bytes(self, utteranceBytes, transcript):
+        """Load, augment, featurize and normalize for speech data.
+
+        :param filename: Audio filepath
+        :type filename: basestring | file
+        :param transcript: Transcription text.
+        :type transcript: basestring
+        :return: Tuple of audio feature tensor and data of transcription part,
+                 where transcription part could be token ids or text.
+        :rtype: tuple of (2darray, list)
+        """
+        # if filename.startswith('tar:'):
+        #     speech_segment = SpeechSegment.from_file(
+        #         self._subfile_from_tar(filename), transcript)
+        # else:
+        #     speech_segment = SpeechSegment.from_file(filename, transcript)
+        speech_segment = SpeechSegment.from_bytes(utteranceBytes, transcript)
+        self._augmentation_pipeline.transform_audio(speech_segment)
+        specgram, transcript_part = self._speech_featurizer.featurize(
+            speech_segment, self._keep_transcription_text)
+        specgram = self._normalizer.apply(specgram)
+        return specgram, transcript_part
+
+    
     def batch_reader_creator(self,
                              manifest_path,
                              batch_size,

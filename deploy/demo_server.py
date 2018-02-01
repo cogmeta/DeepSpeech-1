@@ -186,6 +186,31 @@ def start_server():
                 num_processes=1)
         return result_transcript[0]
 
+
+    # prepare ASR inference handler
+    def bytes_to_transcript(utteranceBytes):
+        feature = data_generator.process_utterance_bytes(utteranceBytes, "")
+        probs_split = ds2_model.infer_batch_probs(
+            infer_data=[feature],
+            feeding_dict=data_generator.feeding)
+
+        if args.decoding_method == "ctc_greedy":
+            result_transcript = ds2_model.decode_batch_greedy(
+                probs_split=probs_split,
+                vocab_list=vocab_list)
+        else:
+            result_transcript = ds2_model.decode_batch_beam_search(
+                probs_split=probs_split,
+                beam_alpha=args.alpha,
+                beam_beta=args.beta,
+                beam_size=args.beam_size,
+                cutoff_prob=args.cutoff_prob,
+                cutoff_top_n=args.cutoff_top_n,
+                vocab_list=vocab_list,
+                num_processes=1)
+        return result_transcript[0]
+
+    
     # warming up with utterrances sampled from Librispeech
     print('-----------------------------------------------------------')
     print('Warming up ...')
