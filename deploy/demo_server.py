@@ -215,7 +215,7 @@ def start_server():
     print('-----------------------------------------------------------')
     print('Warming up ...')
     warm_up_test(
-        audio_process_handler=file_to_transcript,
+        audio_process_handler=bytes_to_transcript,
         manifest_path=args.warmup_manifest,
         num_test_cases=3)
     print('-----------------------------------------------------------')
@@ -225,7 +225,7 @@ def start_server():
         server_address=(args.host_ip, args.host_port),
         RequestHandlerClass=AsrRequestHandler,
         speech_save_dir=args.speech_save_dir,
-        audio_process_handler=file_to_transcript)
+        audio_process_handler=bytes_to_transcript)
     print("ASR Server Started.")
     server.serve_forever()
 
